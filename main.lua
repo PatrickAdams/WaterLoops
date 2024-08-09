@@ -115,8 +115,8 @@ function playdate.update()
                 if math.abs(ring.x - peg.x) < ringInnerRadius and math.abs(ring.y - pegTopY) < 5 then
                     -- The ring lands on the peg
                     ring.y = pegTopY + ringHeight / 2
-                    ring.vx, ring.vy = 0, 0
-                    ring.stacked = true
+                    ring.vx, ring.vy = 0, 0  -- Stop the movement
+                    ring.stacked = true  -- Mark the ring as stacked
                     peg.stack = peg.stack + 1
                     score = score + 1
                     break
