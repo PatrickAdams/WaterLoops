@@ -1,2 +1,8 @@
+name=Water Loops
+author=Dumb Games by Patrick
+description=A modern take on the classic water game
+bundleID=com.patrickadams.waterloops
+version=0.0.1
+
 pdxversion=20500
-buildtime=776542570
+buildtime=776549964
