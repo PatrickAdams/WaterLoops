@@ -4,16 +4,23 @@ import "CoreLibs/math"
 
 local gfx <const> = playdate.graphics
 local totalRings = 20
-local ringWidth = 40  -- Smaller width of the ovals
-local ringHeight = 20  -- Smaller height of the ovals
-local ringThickness = 6  -- Increased thickness for the rings
-local pegWidth = 10  -- Reduced peg width to make them thinner
+local ringWidth = 40
+local ringHeight = 20
+local ringThickness = 6
+local pegWidth = 10
+local minDistance = 80  -- Minimum distance between pegs
+local maxPegY = 180  -- Maximum Y position for pegs (3/4 of the screen height)
+local leftPadding = 30  -- Padding from the left edge
+local rightPadding = 30  -- Padding from the right edge
+local topPadding = 30  -- Padding from the top edge
+local verticalPegHeight = 40  -- Shortened height for the vertical part of the peg
+local horizontalPegHeight = 10  -- Height for the horizontal part of the peg
 local rings = {}
 local pegs = {}
-local gravity = 0.25  -- Gravity for faster falling
-local waterResistance = 0.010  -- Decreased resistance to maintain velocity
-local upwardForceBase = 4  -- Upward force for faster upward movement
-local rotationFactor = 1.0  -- Factor to increase rotation effect
+local gravity = 0.25
+local waterResistance = 0.010
+local upwardForceBase = 4
+local rotationFactor = 1.0
 local score = 0
 local gameOver = false
 
@@ -24,24 +31,47 @@ local function setup()
     rings = {}
     pegs = {}
 
-    -- Create 4 pegs, equally spaced along the bottom
     local screenWidth = 400
+    local screenHeight = 240
     local pegCount = 4
+
+    -- Generate random peg positions ensuring minimum distance, padding, and varying heights
+    local positions = {}
     for i = 1, pegCount do
-        local pegX = (i - 0.5) * (screenWidth / pegCount)
-        table.insert(pegs, {x = pegX, y = 240, width = pegWidth, stack = 0})  -- Adjust peg width here
+        local validPosition = false
+        local x, y
+        while not validPosition do
+            validPosition = true
+            x = math.random(leftPadding + pegWidth, screenWidth - rightPadding - pegWidth)
+            y = math.random(topPadding + verticalPegHeight, maxPegY)
+
+            -- Check distance from other pegs
+            for _, pos in ipairs(positions) do
+                if math.abs(x - pos.x) < minDistance then
+                    validPosition = false
+                    break
+                end
+            end
+        end
+
+        table.insert(positions, {x = x, y = y})
     end
 
-    -- Create rings, all with the same size, spread evenly across the screen width
+    -- Create pegs with T shape
+    for _, pos in ipairs(positions) do
+        table.insert(pegs, {x = pos.x, y = pos.y, width = pegWidth, stack = 0})
+    end
+
+    -- Create rings
     local spacing = screenWidth / totalRings
     for i = 1, totalRings do
         local ring = {
             x = (i - 0.5) * spacing,
             y = 230,
-            vx = 0,  -- Horizontal velocity
-            vy = 0,  -- Vertical velocity
-            angle = math.random() * 360,  -- Random initial angle for rotation
-            stacked = false  -- New flag to check if the ring is stacked on a peg
+            vx = 0,
+            vy = 0,
+            angle = math.random() * 360,
+            stacked = false
         }
         table.insert(rings, ring)
     end
@@ -51,18 +81,21 @@ end
 function playdate.update()
     gfx.clear()
 
-    -- Draw pegs (represented as small vertical rectangles)
+    -- Draw pegs (T shapes)
     for _, peg in ipairs(pegs) do
-        gfx.fillRect(peg.x - peg.width / 2, peg.y - 50, peg.width, 50)  -- Draw the thinner peg
+        -- Draw vertical part of the T
+        gfx.fillRect(peg.x - peg.width / 2, peg.y - verticalPegHeight, peg.width, verticalPegHeight)
+        -- Draw horizontal part of the T
+        gfx.fillRect(peg.x - peg.width, peg.y, peg.width * 2, horizontalPegHeight)
     end
 
     -- Draw score
     gfx.drawText("Score: " .. score, 320, 10)
 
-    -- Update rings and apply 3D water physics
+    -- Update rings and apply 2D physics
     for i, ring in ipairs(rings) do
         if not ring.stacked then
-            -- Apply gravity and resistance in 2D space
+            -- Apply gravity and resistance
             ring.vy = ring.vy + gravity
             ring.vx = ring.vx * (1 - waterResistance)
 
@@ -71,21 +104,21 @@ function playdate.update()
             ring.y = ring.y + ring.vy
 
             -- Rotate the ring based on movement
-            ring.angle = ring.angle + (ring.vx + ring.vy) * rotationFactor  -- Increase rotation effect
+            ring.angle = ring.angle + (ring.vx + ring.vy) * rotationFactor
 
             -- Collision detection for scoring
             for _, peg in ipairs(pegs) do
-                local pegTopY = peg.y - 50
-                local ringInnerRadius = ringWidth / 4  -- Adjusted for oval width
+                local pegTopY = peg.y - verticalPegHeight
+                local ringInnerRadius = ringWidth / 4
 
                 -- Check if the peg top is within the ring's open center
                 if math.abs(ring.x - peg.x) < ringInnerRadius and math.abs(ring.y - pegTopY) < 5 then
                     -- The ring lands on the peg
-                    ring.y = pegTopY + ringHeight / 2  -- Position the ring flat on the peg
-                    ring.vx, ring.vy = 0, 0  -- Stop the movement
-                    ring.stacked = true  -- Mark the ring as stacked
-                    peg.stack = peg.stack + 1  -- Increase stack count
-                    score = score + 1  -- Increase score
+                    ring.y = pegTopY + ringHeight / 2
+                    ring.vx, ring.vy = 0, 0
+                    ring.stacked = true
+                    peg.stack = peg.stack + 1
+                    score = score + 1
                     break
                 end
             end
@@ -100,7 +133,7 @@ function playdate.update()
             gfx.pushContext()
             gfx.setDrawOffset(ring.x, ring.y)
             drawThickRotatedEllipse(0, 0, ringWidth, ringHeight, ring.angle, ringThickness)
-            gfx.setDrawOffset(0, 0)  -- Reset the drawing offset
+            gfx.setDrawOffset(0, 0)
             gfx.popContext()
         end
     end
@@ -152,8 +185,8 @@ local function shootWater(leftForce, rightForce, area)
             local upwardForce = upwardForceBase + math.random() * 2  -- Increased base upward force
 
             -- Update velocities
-            ring.vy = ring.vy - upwardForce  -- Make the ring move upward
-            ring.vx = ring.vx + leftForce * forceFactor  -- Move left or right
+            ring.vy = ring.vy - upwardForce
+            ring.vx = ring.vx + leftForce * forceFactor
             ring.vx = ring.vx + rightForce * forceFactor
             ring.angle = ring.angle + (leftForce + rightForce) * rotationFactor  -- Further increase rotation based on force
 
@@ -162,7 +195,6 @@ local function shootWater(leftForce, rightForce, area)
     end
 end
 
--- Adjust these values to change the effect of the water jets
 function playdate.AButtonDown()
     shootWater(-1.5, 0, "right")  -- Increased leftward force for A button
 end
